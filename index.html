@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>River Impact Cisadane - Dashboard & Manajemen Sampah</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS (XLSX) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- jsPDF & autoTable -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        river: { 50: '#ecfdf5', 100: '#d1fae5', 500: '#10b981', 600: '#059669', 700: '#047857', 900: '#064e3b' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-full flex flex-col antialiased">
+
+    <header class="bg-emerald-900 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-emerald-700 p-2 rounded-xl text-emerald-100 flex items-center justify-center shadow-inner">
+                    <i class="fa-solid fa-water text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight tracking-wide">River Impact Cisadane</h1>
+                    <p class="text-xs text-emerald-200">Interceptor 020</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 overflow-y-auto">
+        
+        <section class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <!-- Simple Dropdown Date Filter -->
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div class="flex items-center space-x-2">
+                    <span class="text-xs font-semibold text-slate-500 whitespace-nowrap"><i class="fa-solid fa-filter text-emerald-600 mr-1"></i> Periode Data:</span>
+                    <select id="dateDropdown" onchange="onDropdownFilterChange()" class="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-sm">
+                        <option value="today">Hari Ini</option>
+                        <option value="week">7 Hari Terakhir</option>
+                        <option value="month">Bulan Ini</option>
+                        <option value="all" selected>Semua Waktu</option>
+                        <option value="custom">Rentang Kustom...</option>
+                    </select>
+                </div>
+
+                <!-- Custom Range Inputs (Hidden by default unless 'custom' selected) -->
+                <div id="customDateContainer" class="hidden flex items-center space-x-2 text-xs">
+                    <input type="date" id="startDate" onchange="onCustomDateChange()" class="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer">
+                    <span class="text-slate-400">s/d</span>
+                    <input type="date" id="endDate" onchange="onCustomDateChange()" class="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer">
+                </div>
+            </div>
+
+            <!-- Export Buttons -->
+            <div class="flex items-center space-x-2 self-end md:self-center">
+                <button onclick="exportAllPDF()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm flex items-center space-x-1.5">
+                    <i class="fa-solid fa-file-pdf"></i>
+                    <span>Cetak PDF</span>
+                </button>
+                <button onclick="exportAllExcel()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm flex items-center space-x-1.5">
+                    <i class="fa-solid fa-file-excel"></i>
+                    <span>Export Excel</span>
+                </button>
+            </div>
+        </section>
+
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 relative overflow-hidden flex items-center justify-between">
+                <div class="space-y-1 z-10">
+                    <span class="inline-block text-[11px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md">Sampah Sungai</span>
+                    <h3 id="statRiverTotal" class="text-2xl sm:text-3xl font-extrabold text-slate-800 mt-1">0 kg</h3>
+                    <p class="text-xs text-slate-500 flex items-center space-x-1 pt-0.5">
+                        <i class="fa-solid fa-clipboard-list text-slate-400"></i>
+                        <span><strong id="statRiverCount" class="text-slate-700">0</strong> catatan terekam</span>
+                    </p>
+                </div>
+                <div class="bg-blue-50 text-blue-600 p-4 rounded-2xl flex items-center justify-center shadow-inner">
+                    <i class="fa-solid fa-water text-3xl"></i>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-1.5 bg-blue-500"></div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 relative overflow-hidden flex items-center justify-between">
+                <div class="space-y-1 z-10">
+                    <span class="inline-block text-[11px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-md">Sampah Warga</span>
+                    <h3 id="statCitizenTotal" class="text-2xl sm:text-3xl font-extrabold text-slate-800 mt-1">0 kg</h3>
+                    <p class="text-xs text-slate-500 flex items-center space-x-1 pt-0.5">
+                        <i class="fa-solid fa-clipboard-list text-slate-400"></i>
+                        <span><strong id="statCitizenCount" class="text-slate-700">0</strong> catatan terekam</span>
+                    </p>
+                </div>
+                <div class="bg-amber-50 text-amber-600 p-4 rounded-2xl flex items-center justify-center shadow-inner">
+                    <i class="fa-solid fa-house-chimney-user text-3xl"></i>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-1.5 bg-amber-500"></div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 relative overflow-hidden flex items-center justify-between">
+                <div class="space-y-1 z-10">
+                    <span class="inline-block text-[11px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-md">Truk Muatan Keluar</span>
+                    <h3 id="statTruckTotal" class="text-2xl sm:text-3xl font-extrabold text-slate-800 mt-1">0 Ton</h3>
+                    <p class="text-xs text-slate-500 flex items-center space-x-1 pt-0.5">
+                        <i class="fa-solid fa-clipboard-list text-slate-400"></i>
+                        <span><strong id="statTruckCount" class="text-slate-700">0</strong> armada operasional</span>
+                    </p>
+                </div>
+                <div class="bg-emerald-50 text-emerald-600 p-4 rounded-2xl flex items-center justify-center shadow-inner">
+                    <i class="fa-solid fa-truck text-3xl"></i>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-1.5 bg-emerald-600"></div>
+            </div>
+        </section>
+
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <!-- Tabs header -->
+            <div class="flex border-b border-slate-200 bg-slate-50 px-4 pt-4 gap-2 overflow-x-auto">
+                <button onclick="switchTab('river')" id="tabBtn-river" class="tab-btn px-5 py-3 text-xs sm:text-sm font-semibold rounded-t-xl border-b-2 border-emerald-600 text-emerald-700 bg-white shadow-sm transition">
+                    <i class="fa-solid fa-water mr-1.5"></i> Sampah Sungai
+                </button>
+                <button onclick="switchTab('citizen')" id="tabBtn-citizen" class="tab-btn px-5 py-3 text-xs sm:text-sm font-semibold rounded-t-xl border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition">
+                    <i class="fa-solid fa-house-chimney-user mr-1.5"></i> Sampah Warga
+                </button>
+                <button onclick="switchTab('truck')" id="tabBtn-truck" class="tab-btn px-5 py-3 text-xs sm:text-sm font-semibold rounded-t-xl border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition">
+                    <i class="fa-solid fa-truck mr-1.5"></i> Truk Muatan Keluar
+                </button>
+            </div>
+
+            <div class="p-5 sm:p-6">
+                <!-- TAB 1: SAMPAH SUNGAI -->
+                <div id="tabContent-river" class="tab-content space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                            <h2 class="font-bold text-slate-800 text-base">Data Pengumpulan Sampah Sungai</h2>
+                            <p class="text-xs text-slate-500">Catatan hasil pembersihan di aliran Sungai Cisadane.</p>
+                        </div>
+                        <button onclick="openModal('river')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm flex items-center justify-center space-x-1.5">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>Tambah Data Sungai</span>
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                        <table class="w-full text-left text-xs sm:text-sm">
+                            <thead class="bg-slate-100 text-slate-600 uppercase font-semibold text-[11px] border-b border-slate-200">
+                                <tr>
+                                    <th class="px-4 py-3">Tanggal</th>
+                                    <th class="px-4 py-3">Lokasi / Sektor</th>
+                                    <th class="px-4 py-3">Jenis Sampah Dominan</th>
+                                    <th class="px-4 py-3">Berat (Kg)</th>
+                                    <th class="px-4 py-3">Petugas / Tim</th>
+                                    <th class="px-4 py-3">Foto Struk</th>
+                                    <th class="px-4 py-3 text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody-river" class="divide-y divide-slate-200 text-slate-700">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- TAB 2: SAMPAH WARGA -->
+                <div id="tabContent-citizen" class="tab-content hidden space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                            <h2 class="font-bold text-slate-800 text-base">Data Sampah Warga / Domestik Bantaran</h2>
+                            <p class="text-xs text-slate-500">Catatan volume sampah rumah tangga di pemukiman sekitar sungai.</p>
+                        </div>
+                        <button onclick="openModal('citizen')" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm flex items-center justify-center space-x-1.5">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>Tambah Data Warga</span>
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                        <table class="w-full text-left text-xs sm:text-sm">
+                            <thead class="bg-slate-100 text-slate-600 uppercase font-semibold text-[11px] border-b border-slate-200">
+                                <tr>
+                                    <th class="px-4 py-3">Tanggal</th>
+                                    <th class="px-4 py-3">Wilayah / RT / RW</th>
+                                    <th class="px-4 py-3">Jumlah KK / Warga</th>
+                                    <th class="px-4 py-3">Volume Sampah (Kg)</th>
+                                    <th class="px-4 py-3">Petugas</th>
+                                    <th class="px-4 py-3">Foto Struk</th>
+                                    <th class="px-4 py-3 text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody-citizen" class="divide-y divide-slate-200 text-slate-700">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- TAB 3: TRUK MUATAN KELUAR -->
+                <div id="tabContent-truck" class="tab-content hidden space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                            <h2 class="font-bold text-slate-800 text-base">Data Truk Muatan Sampah Keluar TPA</h2>
+                            <p class="text-xs text-slate-500">Catatan armada pengangkutan sampah menuju Tempat Pembuangan Akhir.</p>
+                        </div>
+                        <button onclick="openModal('truck')" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm flex items-center justify-center space-x-1.5">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>Tambah Data Truk</span>
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                        <table class="w-full text-left text-xs sm:text-sm">
+                            <thead class="bg-slate-100 text-slate-600 uppercase font-semibold text-[11px] border-b border-slate-200">
+                                <tr>
+                                    <th class="px-4 py-3">Tanggal & Waktu</th>
+                                    <th class="px-4 py-3">Nomor Polisi Truk</th>
+                                    <th class="px-4 py-3">Nama Pengemudi</th>
+                                    <th class="px-4 py-3">Berat Muatan (Ton)</th>
+                                    <th class="px-4 py-3">Tujuan TPA</th>
+                                    <th class="px-4 py-3">Foto Struk</th>
+                                    <th class="px-4 py-3 text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody-truck" class="divide-y divide-slate-200 text-slate-700">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4 mt-8">
+            <div class="flex items-center space-x-3 text-slate-600 text-xs">
+                <div class="bg-slate-100 p-2.5 rounded-xl text-emerald-700">
+                    <i class="fa-solid fa-shield-halved text-lg"></i>
+                </div>
+                <div>
+                    <h4 class="font-bold text-slate-800 text-sm">Pusat Pengaturan & Keamanan Data</h4>
+                    <p class="text-slate-500">Cadangkan database secara berkala, hubungkan ke Google Sheets, atau lakukan reset sistem.</p>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2.5">
+                <button onclick="openBackupModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition flex items-center space-x-2 border border-slate-300 shadow-sm">
+                    <i class="fa-solid fa-cloud-arrow-down text-emerald-600"></i>
+                    <span>Cadangkan / Pulihkan</span>
+                </button>
+                <button onclick="openSheetsModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition flex items-center space-x-2 border border-slate-300 shadow-sm">
+                    <i class="fa-solid fa-file-excel text-green-600"></i>
+                    <span>Google Sheets</span>
+                </button>
+                <button onclick="confirmResetData()" class="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition flex items-center space-x-2 border border-rose-200 shadow-sm">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span>Reset Semua Data</span>
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <div id="formModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 id="modalTitle" class="font-bold text-slate-800 text-base">Form Input Data</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-lg p-1"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="dynamicForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+                <input type="hidden" id="formType">
+                <input type="hidden" id="editIndex" value="-1">
+                
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-slate-600">Tanggal</label>
+                    <input type="date" id="inputDate" required class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+
+                <div id="dynamicFields" class="space-y-4">
+                    <!-- Dynamic fields will be injected here -->
+                </div>
+
+                <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+                    <button type="button" onclick="closeModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition">Batal</button>
+                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition shadow-sm">Simpan Data</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Backup Modal -->
+    <div id="backupModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-slate-800 text-base">Cadangkan & Pemulihan Data</h3>
+                <button onclick="closeBackupModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p class="text-xs text-slate-600 leading-relaxed">Unduh file cadangan data (JSON) untuk mengamankan seluruh record persampahan, atau unggah kembali file cadangan sebelumnya.</p>
+            <div class="space-y-3 pt-2">
+                <button onclick="downloadBackup()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-3 rounded-xl transition flex items-center justify-center space-x-2 shadow-sm">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Unduh File Cadangan (JSON)</span>
+                </button>
+                <div class="relative">
+                    <input type="file" id="restoreFile" accept=".json" onchange="restoreBackup(event)" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                    <button type="button" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold py-3 rounded-xl transition flex items-center justify-center space-x-2 border border-slate-300">
+                        <i class="fa-solid fa-upload"></i>
+                        <span>Pulihkan dari File Cadangan</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Google Sheets Modal -->
+    <div id="sheetsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-slate-800 text-base">Integrasi Google Spreadsheet</h3>
+                <button onclick="closeSheetsModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p class="text-xs text-slate-600 leading-relaxed">Anda dapat menghubungkan sistem ini dengan Google Sheets untuk sinkronisasi data online atau menggunakan template standar kami.</p>
+            <div class="space-y-3 pt-2">
+                <div>
+                    <label class="text-xs font-semibold text-slate-600 block mb-1">Tautan Google Spreadsheet Anda:</label>
+                    <div class="flex space-x-2">
+                        <input type="url" id="sheetUrlInput" placeholder="https://docs.google.com/spreadsheets/d/..." class="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        <button onclick="saveSheetUrl()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition">Simpan</button>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-2">
+                    <p class="font-semibold text-slate-700"><i class="fa-solid fa-circle-info text-emerald-600 mr-1"></i> Panduan Pengambilan Data:</p>
+                    <ol class="list-decimal list-inside space-y-1 text-slate-600">
+                        <li>Buka Google Sheets template River Impact.</li>
+                        <li>Pilih menu <span class="font-semibold text-slate-700">File > Bagikan > Publikasikan ke web</span>.</li>
+                        <li>Pilih format CSV atau gunakan link spreadsheet aktif di atas.</li>
+                    </ol>
+                    <div class="pt-2">
+                        <a id="currentSheetLink" href="#" target="_blank" class="text-emerald-700 underline font-semibold hidden">Buka Google Sheet Terhubung</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Preview Modal -->
+    <div id="imageModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden" onclick="closeImageModal()">
+        <div class="bg-white rounded-2xl max-w-xl w-full p-4 shadow-2xl border border-slate-200 space-y-3 relative" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 class="font-bold text-slate-800 text-sm"><i class="fa-solid fa-image text-emerald-600 mr-1.5"></i> Foto Struk / Bukti Timbangan</h3>
+                <button onclick="closeImageModal()" class="text-slate-400 hover:text-slate-600 text-lg p-1"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="flex items-center justify-center bg-slate-900 rounded-xl overflow-hidden max-h-[70vh]">
+                <img id="modalImageSrc" src="" alt="Foto Struk" class="max-h-[65vh] object-contain">
+            </div>
+            <div class="text-right">
+                <button onclick="closeImageModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold px-4 py-2 rounded-xl transition">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white text-xs px-4 py-3 rounded-xl shadow-xl transition-all duration-300 transform translate-y-20 opacity-0 z-50 flex items-center space-x-2">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toastMsg">Berhasil menyimpan data!</span>
+    </div>
+
+    <script>
+        const todayStr = new Date().toISOString().split('T')[0];
+        let appData = JSON.parse(localStorage.getItem('cisadane_waste_data')) || {
+            river: [
+                { id: 1, date: todayStr, location: 'interceptor', type: 'Plastik & Botol', weight: 450, officer: 'interceptor', receipt: '' },
+                { id: 2, date: '2026-10-01', location: 'interceptor', type: 'Kayu & Sampah Organik', weight: 1200, officer: 'interceptor', receipt: '' }
+            ],
+            citizen: [
+                { id: 1, date: todayStr, area: 'Kelurahan tanjung burung RT 03/05', households: 120, volume: 850, method: 'acan', receipt: '' },
+                { id: 2, date: '2026-09-28', area: 'Kampung kali baru RT 01/02', households: 95, volume: 620, method: 'wahyu', receipt: '' }
+            ],
+            truck: [
+                { id: 1, date: todayStr + 'T08:30', plat: 'A 9123 VTA', driver: 'Bapak Salim', weight: 4.5, destination: 'TPA Jatiwaringin', receipt: '' },
+                { id: 2, date: '2026-09-29T10:15', plat: 'A 8421 JKS', driver: 'Bapak Nurul', weight: 5.2, destination: 'TPA Jatiwaringin', receipt: '' }
+            ]
+        };
+
+        let currentFilter = { start: '', end: '', label: 'Semua Waktu' };
+
+        window.onload = function() {
+            setDropdownDate('all');
+            loadSheetUrlPreference();
+        }
+
+        function saveData() {
+            localStorage.setItem('cisadane_waste_data', JSON.stringify(appData));
+            applyFilterAndRefresh();
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('border-emerald-600', 'text-emerald-700', 'bg-white', 'shadow-sm');
+                btn.classList.add('border-transparent', 'text-slate-500');
+            });
+
+            document.getElementById(`tabContent-${tabName}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tabBtn-${tabName}`);
+            activeBtn.classList.remove('border-transparent', 'text-slate-500');
+            activeBtn.classList.add('border-emerald-600', 'text-emerald-700', 'bg-white', 'shadow-sm');
+        }
+
+        function onDropdownFilterChange() {
+            const val = document.getElementById('dateDropdown').value;
+            const customContainer = document.getElementById('customDateContainer');
+            
+            if (val === 'custom') {
+                customContainer.classList.remove('hidden');
+                onCustomDateChange();
+            } else {
+                customContainer.classList.add('hidden');
+                setDropdownDate(val);
+            }
+        }
+
+        function setDropdownDate(preset) {
+            const today = new Date();
+            let start = '';
+            let end = '';
+            let label = 'Semua Waktu';
+
+            if (preset === 'today') {
+                start = today.toISOString().split('T')[0];
+                end = start;
+                label = 'Hari Ini (' + start + ')';
+            } else if (preset === 'week') {
+                const pastWeek = new Date();
+                pastWeek.setDate(today.getDate() - 7);
+                start = pastWeek.toISOString().split('T')[0];
+                end = today.toISOString().split('T')[0];
+                label = '7 Hari Terakhir';
+            } else if (preset === 'month') {
+                const year = today.getFullYear();
+                const month = String(today.getMonth() + 1).padStart(2, '0');
+                start = `${year}-${month}-01`;
+                end = today.toISOString().split('T')[0];
+                label = 'Bulan Ini';
+            } else {
+                start = '';
+                end = '';
+                label = 'Semua Waktu';
+            }
+
+            document.getElementById('startDate').value = start;
+            document.getElementById('endDate').value = end;
+            currentFilter = { start, end, label };
+            
+            renderTables();
+            updateStats();
+        }
+
+        function onCustomDateChange() {
+            const start = document.getElementById('startDate').value;
+            const end = document.getElementById('endDate').value;
+            
+            let label = 'Kustom';
+            if (start && end) label = `${start} s/d ${end}`;
+            else if (start) label = `Mulai ${start}`;
+            else if (end) label = `Sampai ${end}`;
+            else label = 'Semua Waktu';
+
+            currentFilter = { start, end, label };
+            renderTables();
+            updateStats();
+        }
+
+        function applyFilterAndRefresh() {
+            renderTables();
+            updateStats();
+        }
+
+        function filterByDate(itemDate) {
+            if (!currentFilter.start && !currentFilter.end) return true;
+            const d = itemDate.substring(0, 10);
+            if (currentFilter.start && d < currentFilter.start) return false;
+            if (currentFilter.end && d > currentFilter.end) return false;
+            return true;
+        }
+
+        function renderTables() {
+            const riverTbody = document.getElementById('tableBody-river');
+            riverTbody.innerHTML = '';
+            const filteredRiver = appData.river.filter(item => filterByDate(item.date));
+            if (filteredRiver.length === 0) {
+                riverTbody.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-slate-400 italic">Tidak ada data sampah sungai untuk periode ini.</td></tr>`;
+            } else {
+                filteredRiver.forEach((item) => {
+                    const originalIdx = appData.river.findIndex(r => r.id === item.id);
+                    let receiptHtml = item.receipt ? `<button onclick="viewImage('${encodeURIComponent(item.receipt)}')" class="text-emerald-600 hover:text-emerald-800 underline font-semibold flex items-center space-x-1"><i class="fa-solid fa-image"></i><span>Lihat Foto</span></button>` : `<span class="text-slate-400 italic text-xs">Tanpa Foto</span>`;
+                    riverTbody.innerHTML += `
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="px-4 py-3 font-medium">${item.date}</td>
+                            <td class="px-4 py-3">${item.location}</td>
+                            <td class="px-4 py-3"><span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-xs font-medium">${item.type}</span></td>
+                            <td class="px-4 py-3 font-semibold">${item.weight.toLocaleString('id-ID')} Kg</td>
+                            <td class="px-4 py-3 text-slate-600">${item.officer}</td>
+                            <td class="px-4 py-3">${receiptHtml}</td>
+                            <td class="px-4 py-3 text-right space-x-2">
+                                <button onclick="editItem('river', ${originalIdx})" class="text-blue-600 hover:text-blue-800 p-1.5"><i class="fa-solid fa-pen-to-square"></i></button>
+                                <button onclick="deleteItem('river', ${originalIdx})" class="text-rose-600 hover:text-rose-800 p-1.5"><i class="fa-solid fa-trash"></i></button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            const citizenTbody = document.getElementById('tableBody-citizen');
+            citizenTbody.innerHTML = '';
+            const filteredCitizen = appData.citizen.filter(item => filterByDate(item.date));
+            if (filteredCitizen.length === 0) {
+                citizenTbody.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-slate-400 italic">Tidak ada data sampah warga untuk periode ini.</td></tr>`;
+            } else {
+                filteredCitizen.forEach((item) => {
+                    const originalIdx = appData.citizen.findIndex(c => c.id === item.id);
+                    let receiptHtml = item.receipt ? `<button onclick="viewImage('${encodeURIComponent(item.receipt)}')" class="text-emerald-600 hover:text-emerald-800 underline font-semibold flex items-center space-x-1"><i class="fa-solid fa-image"></i><span>Lihat Foto</span></button>` : `<span class="text-slate-400 italic text-xs">Tanpa Foto</span>`;
+                    citizenTbody.innerHTML += `
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="px-4 py-3 font-medium">${item.date}</td>
+                            <td class="px-4 py-3">${item.area}</td>
+                            <td class="px-4 py-3">${item.households} KK</td>
+                            <td class="px-4 py-3 font-semibold">${item.volume.toLocaleString('id-ID')} Kg</td>
+                            <td class="px-4 py-3"><span class="bg-amber-50 text-amber-700 px-2.5 py-1 rounded-md text-xs font-medium">${item.method}</span></td>
+                            <td class="px-4 py-3">${receiptHtml}</td>
+                            <td class="px-4 py-3 text-right space-x-2">
+                                <button onclick="editItem('citizen', ${originalIdx})" class="text-blue-600 hover:text-blue-800 p-1.5"><i class="fa-solid fa-pen-to-square"></i></button>
+                                <button onclick="deleteItem('citizen', ${originalIdx})" class="text-rose-600 hover:text-rose-800 p-1.5"><i class="fa-solid fa-trash"></i></button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            const truckTbody = document.getElementById('tableBody-truck');
+            truckTbody.innerHTML = '';
+            const filteredTruck = appData.truck.filter(item => filterByDate(item.date));
+            if (filteredTruck.length === 0) {
+                truckTbody.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-slate-400 italic">Tidak ada data truk keluar untuk periode ini.</td></tr>`;
+            } else {
+                filteredTruck.forEach((item) => {
+                    const originalIdx = appData.truck.findIndex(t => t.id === item.id);
+                    let receiptHtml = item.receipt ? `<button onclick="viewImage('${encodeURIComponent(item.receipt)}')" class="text-emerald-600 hover:text-emerald-800 underline font-semibold flex items-center space-x-1"><i class="fa-solid fa-image"></i><span>Lihat Foto</span></button>` : `<span class="text-slate-400 italic text-xs">Tanpa Foto</span>`;
+                    truckTbody.innerHTML += `
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="px-4 py-3 font-medium">${item.date.replace('T', ' ')}</td>
+                            <td class="px-4 py-3"><span class="bg-slate-100 font-mono text-slate-800 px-2.5 py-1 rounded font-semibold text-xs">${item.plat}</span></td>
+                            <td class="px-4 py-3">${item.driver}</td>
+                            <td class="px-4 py-3 font-semibold">${item.weight} Ton</td>
+                            <td class="px-4 py-3 text-emerald-700 font-medium">${item.destination}</td>
+                            <td class="px-4 py-3">${receiptHtml}</td>
+                            <td class="px-4 py-3 text-right space-x-2">
+                                <button onclick="editItem('truck', ${originalIdx})" class="text-blue-600 hover:text-blue-800 p-1.5"><i class="fa-solid fa-pen-to-square"></i></button>
+                                <button onclick="deleteItem('truck', ${originalIdx})" class="text-rose-600 hover:text-rose-800 p-1.5"><i class="fa-solid fa-trash"></i></button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+        }
+
+        function updateStats() {
+            const filteredRiver = appData.river.filter(item => filterByDate(item.date));
+            const totalRiverKg = filteredRiver.reduce((sum, item) => sum + Number(item.weight), 0);
+            document.getElementById('statRiverTotal').innerText = totalRiverKg.toLocaleString('id-ID') + ' kg';
+            document.getElementById('statRiverCount').innerText = filteredRiver.length;
+
+            const filteredCitizen = appData.citizen.filter(item => filterByDate(item.date));
+            const totalCitizenKg = filteredCitizen.reduce((sum, item) => sum + Number(item.volume), 0);
+            document.getElementById('statCitizenTotal').innerText = totalCitizenKg.toLocaleString('id-ID') + ' kg';
+            document.getElementById('statCitizenCount').innerText = filteredCitizen.length;
+
+            const filteredTruck = appData.truck.filter(item => filterByDate(item.date));
+            const totalTruckTon = filteredTruck.reduce((sum, item) => sum + Number(item.weight), 0);
+            document.getElementById('statTruckTotal').innerText = totalTruckTon.toFixed(1) + ' Ton';
+            document.getElementById('statTruckCount').innerText = filteredTruck.length;
+        }
+
+        function openModal(type, editIndex = -1) {
+            document.getElementById('formModal').classList.remove('hidden');
+            document.getElementById('formType').value = type;
+            document.getElementById('editIndex').value = editIndex;
+            
+            const todayStr = new Date().toISOString().split('T')[0];
+            document.getElementById('inputDate').value = todayStr;
+
+            const container = document.getElementById('dynamicFields');
+            container.innerHTML = '';
+
+            let existingReceipt = '';
+
+            if (type === 'river') {
+                document.getElementById('modalTitle').innerText = editIndex === -1 ? 'Tambah Data Sampah Sungai' : 'Edit Data Sampah Sungai';
+                let item = editIndex !== -1 ? appData.river[editIndex] : { location: '', type: 'Plastik & Botol', weight: '', officer: '', receipt: '' };
+                if(editIndex !== -1) {
+                    document.getElementById('inputDate').value = item.date;
+                    existingReceipt = item.receipt || '';
+                }
+
+                container.innerHTML = `
+                    <div class="space-y-1">
+                        <label class="text-xs font-semibold text-slate-600">Lokasi / Sektor Sungai</label>
+                        <input type="text" id="field1" value="${item.location}" required placeholder="Contoh: Sungai Cisadane" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-semibold text-slate-600">Jenis Sampah Dominan</label>
+                        <input type="text" id="field2" value="${item.type}" required placeholder="Contoh: Plastik, Organik, Kayu" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-semibold text-slate-600">Berat Sampah (Kg)</label>
+                        <input type="number" id="field3" value="${item.weight}" required min="1" placeholder="Contoh: 500" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-semibold text-slate-600">Nama Petugas / Tim Lapangan</label>
+                        <input type="text" id="field4" value="${item.officer}" required placeholder="Contoh: Tim Interceptor" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1 pt-1">
+                        <label class="text-xs font-semibold text-slate-600 flex items-center justify-between">
+                            <span>Foto Struk / Bukti Timbangan (Opsional)</span>
+                            <span id="receiptStatus" class="text-[10px] text-emerald-600 font-normal">${existingReceipt ? 'Foto tersimpan' : ''}</span>
+                        </label>
+                        <input type="file" id="fieldReceipt" accept="image/*" onchange="previewReceiptFile(event)" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer">
+                        <input type="hidden" id="receiptBase64" value="${existingReceipt}">
+                        <div id="receiptPreviewContainer" class="${existingReceipt ? '' : 'hidden'} mt-2 relative w-24 h-24 border rounded-xl overflow-hidden bg-slate-100">
+                            <img id="receiptPreviewImg" src="${existingReceipt}" class="w-full h-full object-cover">
+                            <button type="button" onclick="clearReceipt()" class="absolute top-1 right-1 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    </div>
+                `;
+            } else if (type === 'citizen') {
+                document.getElementById('modalTitle').innerText = editIndex === -1 ? 'Tambah Data Sampah Warga' : 'Edit Data Sampah Warga';
+                let item = editIndex !== -1 ? appData.citizen[editIndex] : { area: '', households: '', volume: '', method: '', receipt: '' };
+                if(editIndex !== -1) {
+                    document.getElementById('inputDate').value = item.date;
+                    existingReceipt = item.receipt || '';
+                }
+
+                container.innerHTML = `
+                    <div class="space-y-1">
+                        <label class="text-xs font-semibold text-slate-600">Wilayah / RT / RW / Kelurahan</label>
+                        <input type="text" id="field1" value="${item.area}" required placeholder="Contoh: Kelurahan tanjung burung RT 03/05" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-semibold text-slate-600">Jumlah KK / Warga Partisipan</label>
+                        <input type="number" id="field2" value="${item.households}" required min="1" placeholder="Contoh: 120" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-semibold text-slate-600">Volume Sampah (Kg)</label>
+                        <input type="number" id="field3" value="${item.volume}" required min="1" placeholder="Contoh: 850" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-semibold text-slate-600">Metode Pengelolaan</label>
+                        <input type="text" id="field4" value="${item.method}" required placeholder="Contoh: Bank Sampah / TPS 3R" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1 pt-1">
+                        <label class="text-xs font-semibold text-slate-600 flex items-center justify-between">
+                            <span>Foto Struk / Bukti Timbangan (Opsional)</span>
+                            <span id="receiptStatus" class="text-[10px] text-emerald-600 font-normal">${existingReceipt ? 'Foto tersimpan' : ''}</span>
+                        </label>
+                        <input type="file" id="fieldReceipt" accept="image/*" onchange="previewReceiptFile(event)" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer">
+                        <input type="hidden" id="receiptBase64" value="${existingReceipt}">
+                        <div id="receiptPreviewContainer" class="${existingReceipt ? '' : 'hidden'} mt-2 relative w-24 h-24 border rounded-xl overflow-hidden bg-slate-100">
+                            <img id="receiptPreviewImg" src="${existingReceipt}" class="w-full h-full object-cover">
+                            <button type="button" onclick="clearReceipt()" class="absolute top-1 right-1 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    </div>
+                `;
+            } else if (type === 'truck') {
+                document.getElementById('modalTitle').innerText = editIndex === -1 ? 'Tambah Data Truk Keluar' : 'Edit Data Truk Keluar';
+                let item = editIndex !== -1 ? appData.truck[editIndex] : { date: todayStr, plat: '', driver: '', weight: '', destination: 'TPA Jatiwaringin', receipt: '' };
+                if(editIndex !== -1) {
+                    document.getElementById('inputDate').value = item.date.substring(0, 10);
+                    existingReceipt = item.receipt || '';
+                }
+
+                container.innerHTML = `
+                    <div class="space-y-1">
+                        <label class="text-xs font-semibold text-slate-600">Nomor Polisi Truk</label>
+                        <input type="text" id="field1" value="${item.plat}" required placeholder="Contoh: A 9123 VTA" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none uppercase">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-semibold text-slate-600">Nama Pengemudi</label>
+                        <input type="text" id="field2" value="${item.driver}" required placeholder="Contoh: Bapak salim" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-semibold text-slate-600">Berat Muatan (Ton)</label>
+                        <input type="number" step="0.1" id="field3" value="${item.weight}" required min="0.1" placeholder="Contoh: 4.5" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-semibold text-slate-600">Tujuan Pengiriman TPA</label>
+                        <input type="text" id="field4" value="${item.destination}" required placeholder="Contoh: TPA Rawa Jatiwaringin" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1 pt-1">
+                        <label class="text-xs font-semibold text-slate-600 flex items-center justify-between">
+                            <span>Foto Struk / Bukti Timbangan (Opsional)</span>
+                            <span id="receiptStatus" class="text-[10px] text-emerald-600 font-normal">${existingReceipt ? 'Foto tersimpan' : ''}</span>
+                        </label>
+                        <input type="file" id="fieldReceipt" accept="image/*" onchange="previewReceiptFile(event)" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer">
+                        <input type="hidden" id="receiptBase64" value="${existingReceipt}">
+                        <div id="receiptPreviewContainer" class="${existingReceipt ? '' : 'hidden'} mt-2 relative w-24 h-24 border rounded-xl overflow-hidden bg-slate-100">
+                            <img id="receiptPreviewImg" src="${existingReceipt}" class="w-full h-full object-cover">
+                            <button type="button" onclick="clearReceipt()" class="absolute top-1 right-1 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function previewReceiptFile(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const base64 = e.target.result;
+                    document.getElementById('receiptBase64').value = base64;
+                    document.getElementById('receiptPreviewImg').src = base64;
+                    document.getElementById('receiptPreviewContainer').classList.remove('hidden');
+                    document.getElementById('receiptStatus').innerText = 'Foto baru dimuat';
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function clearReceipt() {
+            document.getElementById('receiptBase64').value = '';
+            document.getElementById('receiptPreviewImg').src = '';
+            document.getElementById('receiptPreviewContainer').classList.add('hidden');
+            document.getElementById('fieldReceipt').value = '';
+            document.getElementById('receiptStatus').innerText = 'Foto dihapus';
+        }
+
+        function viewImage(encodedUrl) {
+            const url = decodeURIComponent(encodedUrl);
+            document.getElementById('modalImageSrc').src = url;
+            document.getElementById('imageModal').classList.remove('hidden');
+        }
+
+        function closeImageModal() {
+            document.getElementById('imageModal').classList.add('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('formModal').classList.add('hidden');
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            const type = document.getElementById('formType').value;
+            const editIndex = parseInt(document.getElementById('editIndex').value);
+            const dateVal = document.getElementById('inputDate').value;
+            
+            const f1 = document.getElementById('field1').value;
+            const f2 = document.getElementById('field2').value;
+            const f3 = document.getElementById('field3').value;
+            const f4 = document.getElementById('field4').value;
+            const receiptVal = document.getElementById('receiptBase64').value;
+
+            if (type === 'river') {
+                const newData = { id: editIndex !== -1 ? appData.river[editIndex].id : Date.now(), date: dateVal, location: f1, type: f2, weight: parseFloat(f3), officer: f4, receipt: receiptVal };
+                if (editIndex === -1) appData.river.unshift(newData);
+                else appData.river[editIndex] = newData;
+            } else if (type === 'citizen') {
+                const newData = { id: editIndex !== -1 ? appData.citizen[editIndex].id : Date.now(), date: dateVal, area: f1, households: parseInt(f2), volume: parseFloat(f3), method: f4, receipt: receiptVal };
+                if (editIndex === -1) appData.citizen.unshift(newData);
+                else appData.citizen[editIndex] = newData;
+            } else if (type === 'truck') {
+                const newData = { id: editIndex !== -1 ? appData.truck[editIndex].id : Date.now(), date: dateVal + 'T12:00', plat: f1, driver: f2, weight: parseFloat(f3), destination: f4, receipt: receiptVal };
+                if (editIndex === -1) appData.truck.unshift(newData);
+                else appData.truck[editIndex] = newData;
+            }
+
+            saveData();
+            closeModal();
+            showToast('Data berhasil disimpan!');
+        }
+
+        function editItem(type, index) {
+            openModal(type, index);
+        }
+
+        function deleteItem(type, index) {
+            if (confirm('Apakah Anda yakin ingin menghapus data ini?')) {
+                appData[type].splice(index, 1);
+                saveData();
+                showToast('Data berhasil dihapus.');
+            }
+        }
+
+        function confirmResetData() {
+            if (confirm('PERINGATAN: Seluruh data River Impact Cisadane akan dihapus permanen! Lanjutkan?')) {
+                appData = { river: [], citizen: [], truck: [] };
+                saveData();
+                showToast('Semua data berhasil direset.');
+            }
+        }
+
+        function openBackupModal() { document.getElementById('backupModal').classList.remove('hidden'); }
+        function closeBackupModal() { document.getElementById('backupModal').classList.add('hidden'); }
+
+        function downloadBackup() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", `river_impact_cisadane_backup_${new Date().toISOString().split('T')[0]}.json`);
+            dlAnchorElem.click();
+            showToast('File cadangan berhasil diunduh.');
+        }
+
+        function restoreBackup(event) {
+            const fileReader = new FileReader();
+            if (event.target.files[0]) {
+                fileReader.readAsText(event.target.files[0], "UTF-8");
+                fileReader.onload = function(e) {
+                    try {
+                        appData = JSON.parse(e.target.result);
+                        saveData();
+                        closeBackupModal();
+                        showToast('Data berhasil dipulihkan!');
+                    } catch(err) {
+                        alert('Format file cadangan tidak valid.');
+                    }
+                }
+            }
+        }
+
+        function openSheetsModal() { document.getElementById('sheetsModal').classList.remove('hidden'); }
+        function closeSheetsModal() { document.getElementById('sheetsModal').classList.add('hidden'); }
+
+        function saveSheetUrl() {
+            const url = document.getElementById('sheetUrlInput').value;
+            localStorage.setItem('cisadane_sheet_url', url);
+            closeSheetsModal();
+            loadSheetUrlPreference();
+            showToast('Tautan Google Spreadsheet disimpan.');
+        }
+
+        function loadSheetUrlPreference() {
+            const url = localStorage.getItem('cisadane_sheet_url');
+            if (url) {
+                document.getElementById('sheetUrlInput').value = url;
+                const linkEl = document.getElementById('currentSheetLink');
+                linkEl.href = url;
+                linkEl.classList.remove('hidden');
+            }
+        }
+
+        function exportAllExcel() {
+            const wb = XLSX.utils.book_new();
+
+            const riverSheetData = appData.river.filter(item => filterByDate(item.date)).map(r => ({
+                Tanggal: r.date, Lokasi: r.location, 'Jenis Sampah': r.type, 'Berat (Kg)': r.weight, Petugas: r.officer, 'Status Foto Struk': r.receipt ? 'Ada Foto' : 'Tidak Ada'
+            }));
+            const wsRiver = XLSX.utils.json_to_sheet(riverSheetData);
+            XLSX.utils.book_append_sheet(wb, wsRiver, "Sampah Sungai");
+
+            const citizenSheetData = appData.citizen.filter(item => filterByDate(item.date)).map(c => ({
+                Tanggal: c.date, Wilayah: c.area, 'Jumlah KK': c.households, 'Volume (Kg)': c.volume, 'Metode': c.method, 'Status Foto Struk': c.receipt ? 'Ada Foto' : 'Tidak Ada'
+            }));
+            const wsCitizen = XLSX.utils.json_to_sheet(citizenSheetData);
+            XLSX.utils.book_append_sheet(wb, wsCitizen, "Sampah Warga");
+
+            const truckSheetData = appData.truck.filter(item => filterByDate(item.date)).map(t => ({
+                Tanggal: t.date, 'No Polisi': t.plat, Pengemudi: t.driver, 'Muatan (Ton)': t.weight, Tujuan: t.destination, 'Status Foto Struk': t.receipt ? 'Ada Foto' : 'Tidak Ada'
+            }));
+            const wsTruck = XLSX.utils.json_to_sheet(truckSheetData);
+            XLSX.utils.book_append_sheet(wb, wsTruck, "Truk Keluar");
+
+            XLSX.writeFile(wb, `Laporan_River_Impact_Cisadane_${new Date().toISOString().split('T')[0]}.xlsx`);
+            showToast('File Excel berhasil diexport.');
+        }
+
+        function exportAllPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+
+            doc.setFillColor(6, 78, 59);
+            doc.rect(0, 0, 210, 30, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(16);
+            doc.setFont('helvetica', 'bold');
+            doc.text("RIVER IMPACT CISADANE", 14, 12);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text("Laporan Resmi Monitoring Persampahan Daerah Aliran Sungai", 14, 20);
+
+            doc.setTextColor(100, 100, 100);
+            doc.setFontSize(9);
+            doc.text(`Periode Filter: ${currentFilter.label}`, 14, 38);
+            doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID')}`, 14, 43);
+
+            let startY = 50;
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(12);
+            doc.setTextColor(6, 78, 59);
+            doc.text("1. Data Sampah Sungai", 14, startY);
+
+            const riverRows = appData.river.filter(item => filterByDate(item.date)).map(r => [r.date, r.location, r.type, `${r.weight.toLocaleString('id-ID')} Kg`, r.officer, r.receipt ? 'Ada Foto Struk' : 'Tanpa Foto']);
+            doc.autoTable({
+                startY: startY + 4,
+                head: [['Tanggal', 'Lokasi / Sektor', 'Jenis Sampah', 'Berat (Kg)', 'Petugas', 'Keterangan Struk']],
+                body: riverRows.length > 0 ? riverRows : [['-', 'Tidak ada data', '-', '-', '-', '-']],
+                theme: 'grid',
+                headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+                bodyStyles: { fontSize: 8, textColor: [50, 50, 50] },
+                alternateRowStyles: { fillColor: [240, 253, 244] }
+            });
+
+            let finalY = doc.lastAutoTable.finalY + 10;
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(12);
+            doc.setTextColor(6, 78, 59);
+            doc.text("2. Data Sampah Warga / Domestik", 14, finalY);
+
+            const citizenRows = appData.citizen.filter(item => filterByDate(item.date)).map(c => [c.date, c.area, `${c.households} KK`, `${c.volume.toLocaleString('id-ID')} Kg`, c.method, c.receipt ? 'Ada Foto Struk' : 'Tanpa Foto']);
+            doc.autoTable({
+                startY: finalY + 4,
+                head: [['Tanggal', 'Wilayah / RT/RW', 'Jumlah KK', 'Volume (Kg)', 'Metode', 'Keterangan Struk']],
+                body: citizenRows.length > 0 ? citizenRows : [['-', 'Tidak ada data', '-', '-', '-', '-']],
+                theme: 'grid',
+                headStyles: { fillColor: [217, 119, 6], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+                bodyStyles: { fontSize: 8, textColor: [50, 50, 50] },
+                alternateRowStyles: { fillColor: [254, 252, 232] }
+            });
+
+            finalY = doc.lastAutoTable.finalY + 10;
+            if (finalY > 240) {
+                doc.addPage();
+                finalY = 20;
+            }
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(12);
+            doc.setTextColor(6, 78, 59);
+            doc.text("3. Data Truk Muatan Sampah Keluar TPA", 14, finalY);
+
+            const truckRows = appData.truck.filter(item => filterByDate(item.date)).map(t => [t.date.replace('T', ' '), t.plat, t.driver, `${t.weight} Ton`, t.destination, t.receipt ? 'Ada Foto Struk' : 'Tanpa Foto']);
+            doc.autoTable({
+                startY: finalY + 4,
+                head: [['Tanggal & Waktu', 'No Polisi Truk', 'Pengemudi', 'Muatan (Ton)', 'Tujuan TPA', 'Keterangan Struk']],
+                body: truckRows.length > 0 ? truckRows : [['-', 'Tidak ada data', '-', '-', '-', '-']],
+                theme: 'grid',
+                headStyles: { fillColor: [4, 120, 87], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+                bodyStyles: { fontSize: 8, textColor: [50, 50, 50] },
+                alternateRowStyles: { fillColor: [240, 253, 244] }
+            });
+
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(150, 150, 150);
+                doc.text(`River Impact Cisadane - Halaman ${i} dari ${pageCount}`, 14, 287);
+            }
+
+            doc.save(`Laporan_River_Impact_Cisadane_${new Date().toISOString().split('T')[0]}.pdf`);
+            showToast('Dokumen PDF berhasil dicetak.');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
